@@ -31,6 +31,15 @@
 
   <title>globe_tester</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    /* Prevent browser blue selection highlight and focus outline on interactive elements */
+    html, body, flt-glass-pane, canvas {
+      user-select: none !important;
+      -webkit-user-select: none !important;
+      outline: none !important;
+      -webkit-tap-highlight-color: transparent !important;
+    }
+  </style>
 </head>
 <body>
   <!--
