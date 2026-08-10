@@ -49,11 +49,9 @@ class _GlobeTesterScreenState extends State<GlobeTesterScreen> {
       rotationSpeed: 0.05,
       isRotating: true,
       zoom: 0.6,
-      showAtmosphere: true,
-      atmosphereColor: Colors.blueAccent,
-      atmosphereOpacity: 0.6,
-      background: const AssetImage('assets/nasa_stars.jpg'), // High quality space background
-      surface: const AssetImage('assets/nasa_earth.jpg'),     // Day image of globe from NASA
+      showAtmosphere: false, // Disabled for performance
+      background: const AssetImage('assets/2k_stars.jpg'), // Optimized stars background
+      surface: const AssetImage('assets/2k_earth-day.jpg'),   // Optimized 2K earth texture
       nightSurface: const AssetImage('assets/2k_earth-night.jpg'),
       isDayNightCycleEnabled: false,
     );
