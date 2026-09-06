@@ -8,6 +8,7 @@ import 'package:flutter_earth_globe/globe_coordinates.dart';
 import 'package:flutter_earth_globe/point.dart';
 import 'package:flutter_earth_globe/point_connection.dart';
 import 'package:flutter_earth_globe/point_connection_style.dart';
+import 'package:flutter_earth_globe/misc.dart';
 
 void main() {
   runApp(const MyApp());
@@ -44,6 +45,12 @@ class _GlobeTesterScreenState extends State<GlobeTesterScreen> {
   int satelliteCount = 0;
   bool isCollapsed = false;
 
+  String? _lastTappedRegion;
+  String? _hoveredRegion;
+  final Set<String> _selectedRegionIds = {};
+  bool _styleTestActive = false;
+  bool _regionsVisible = true;
+
   @override
   void initState() {
     super.initState();
@@ -53,8 +60,44 @@ class _GlobeTesterScreenState extends State<GlobeTesterScreen> {
       isRotating: isRotating,
       background: const AssetImage('assets/2k_stars.jpg'),
       surface: const AssetImage('assets/2k_earth-day.jpg'),
+      nightSurface: const AssetImage('assets/2k_earth-night.jpg'),
       dayNightMode: DayNightMode.simulated,
     );
+
+    // Wire up Region Tap hit-testing callback
+    controller.onRegionTap = (region) {
+      setState(() {
+        _lastTappedRegion = '${region.name} (${region.id})';
+        if (_selectedRegionIds.contains(region.id)) {
+          _selectedRegionIds.remove(region.id);
+        } else {
+          _selectedRegionIds.add(region.id);
+        }
+        controller.selectRegions(_selectedRegionIds.toList());
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Tapped: ${region.name} (${region.id}) [${_selectedRegionIds.contains(region.id) ? "Selected" : "Deselected"}]',
+            ),
+            duration: const Duration(milliseconds: 1500),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    };
+
+    // Wire up Region Hover hit-testing callback
+    controller.onRegionHover = (region) {
+      final name = '${region.name} (${region.id})';
+      if (_hoveredRegion != name) {
+        setState(() {
+          _hoveredRegion = name;
+        });
+      }
+    };
 
     // Define Delhi as Home
     final homeCoords = GlobeCoordinates(28.6139, 77.2090);
@@ -152,10 +195,10 @@ class _GlobeTesterScreenState extends State<GlobeTesterScreen> {
           id: country.id,
           name: country.name,
           polygons: country.polygons,
-          borderColor: Colors.white.withAlpha(180),
-          borderWidth: 0.8,
-          fillColor: null,
-          highlightColor: null,
+          borderColor: country.borderColor,
+          borderWidth: country.borderWidth,
+          fillColor: country.fillColor ?? Colors.blue.withAlpha(20),
+          highlightColor: country.highlightColor ?? Colors.amber.withAlpha(180),
           clipAgainst: country.clipAgainst,
         ),
       );
@@ -231,11 +274,12 @@ class _GlobeTesterScreenState extends State<GlobeTesterScreen> {
       }
     }
 
-    controller.addRegions(finalRegions);
-    controller.selectRegions(List<String>.from([
+    _selectedRegionIds.addAll([
       ...highlightedUraStates,
       ...highlightedIndiaStates,
-    ]));
+    ]);
+    controller.addRegions(finalRegions);
+    controller.selectRegions(_selectedRegionIds.toList());
   }
 
   void _toggleRotation() {
@@ -284,14 +328,56 @@ class _GlobeTesterScreenState extends State<GlobeTesterScreen> {
     setState(() {
       highlightsActive = !highlightsActive;
       if (highlightsActive) {
-        controller.selectRegions([
+        _selectedRegionIds.addAll([
           'US-TX', 'US-CA', 'US-NY',
           'RU-MOW', 'RU-SPE', 'RU-MOS',
           'BR-SP', 'BR-RJ', 'BR-MG',
           'IN-DL', 'IN-GA', 'IN-GJ', 'IN-KA', 'IN-MH',
         ]);
+        controller.selectRegions(_selectedRegionIds.toList());
       } else {
+        _selectedRegionIds.clear();
         controller.selectRegions([]);
+      }
+    });
+  }
+
+  void _testStyleUpdate() {
+    setState(() {
+      _styleTestActive = !_styleTestActive;
+      // Dynamically modify India's style on the fly to test stationary repainting!
+      controller.updateRegionStyle(
+        'IND',
+        borderColor: _styleTestActive ? Colors.greenAccent : Colors.white,
+        borderWidth: _styleTestActive ? 2.5 : 0.8,
+        fillColor: _styleTestActive ? Colors.green.withAlpha(140) : Colors.blue.withAlpha(20),
+        highlightColor: Colors.amber.withAlpha(180),
+      );
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _styleTestActive
+                ? 'Stationary Repaint Test: Updated IND to Green Accent'
+                : 'Stationary Repaint Test: Reset IND style to Normal',
+          ),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _toggleRegionsVisibility() {
+    setState(() {
+      _regionsVisible = !_regionsVisible;
+      final allIds = controller.regions.map((r) => r.id).toList();
+      if (_regionsVisible) {
+        controller.showRegions(allIds);
+      } else {
+        controller.hideRegions(allIds);
       }
     });
   }
@@ -354,6 +440,52 @@ class _GlobeTesterScreenState extends State<GlobeTesterScreen> {
               child: FlutterEarthGlobe(
                 controller: controller,
                 radius: radius,
+              ),
+            ),
+          ),
+          Positioned(
+            top: 40,
+            left: 16,
+            right: 16,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withAlpha(180),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white24, width: 0.8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.touch_app, size: 14, color: Color(0xFFFFD700)),
+                    const SizedBox(width: 6),
+                    Text(
+                      _lastTappedRegion != null
+                          ? 'Tapped: $_lastTappedRegion'
+                          : (_hoveredRegion != null ? 'Hover: $_hoveredRegion' : 'Tap any country/state to highlight'),
+                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                    ),
+                    if (_selectedRegionIds.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFD700).withAlpha(40),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '${_selectedRegionIds.length} selected',
+                          style: const TextStyle(
+                            color: Color(0xFFFFD700),
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -435,12 +567,15 @@ class _GlobeTesterScreenState extends State<GlobeTesterScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('Day/Night Cycle', style: TextStyle(color: Colors.white, fontSize: 12)),
-                            value: isDayNightEnabled,
-                            activeThumbColor: const Color(0xFFFFD700),
-                            onChanged: (_) => _toggleDayNight(),
+                          child: Material(
+                            type: MaterialType.transparency,
+                            child: SwitchListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Day/Night Cycle', style: TextStyle(color: Colors.white, fontSize: 12)),
+                              value: isDayNightEnabled,
+                              activeThumbColor: const Color(0xFFFFD700),
+                              onChanged: (_) => _toggleDayNight(),
+                            ),
                           ),
                         ),
                         ElevatedButton(
@@ -456,6 +591,45 @@ class _GlobeTesterScreenState extends State<GlobeTesterScreen> {
                           ),
                           onPressed: _toggleHighlights,
                           child: const Text('Toggle Highlights', style: TextStyle(fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                    const Divider(color: Colors.white10, height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _styleTestActive ? Colors.green.withAlpha(50) : Colors.white10,
+                              foregroundColor: _styleTestActive ? Colors.greenAccent : Colors.white,
+                              side: BorderSide(color: _styleTestActive ? Colors.greenAccent : Colors.transparent),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                            ),
+                            onPressed: _testStyleUpdate,
+                            icon: const Icon(Icons.palette, size: 14),
+                            label: Text(
+                              _styleTestActive ? 'Reset IND Style' : 'Test Style Repaint',
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _regionsVisible ? Colors.white10 : Colors.red.withAlpha(40),
+                              foregroundColor: _regionsVisible ? Colors.white : Colors.redAccent,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                            ),
+                            onPressed: _toggleRegionsVisibility,
+                            icon: Icon(_regionsVisible ? Icons.visibility : Icons.visibility_off, size: 14),
+                            label: Text(
+                              _regionsVisible ? 'Hide Outlines' : 'Show Outlines',
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -571,9 +745,16 @@ class GeoJsonRegionLoader {
     return polygons;
   }
 
-  static Future<List<GlobeRegion>> loadCountries() async {
+  static Future<List<GlobeRegion>> loadCountries({bool highRes = false}) async {
     final indiaRegion = await IndiaBorderResolver.resolveCorrectedIndia(_parseFeaturePolygons);
-    final jsonString = await rootBundle.loadString('assets/geo/countries_10m.geojson');
+    String jsonString;
+    try {
+      jsonString = await rootBundle.loadString(
+        highRes ? 'assets/geo/countries_10m.geojson' : 'assets/geo/countries.geojson',
+      );
+    } catch (_) {
+      jsonString = await rootBundle.loadString('assets/geo/countries.geojson');
+    }
     final Map<String, dynamic> data = jsonDecode(jsonString);
     final features = data['features'] as List<dynamic>;
     final regions = <GlobeRegion>[];
@@ -601,10 +782,10 @@ class GeoJsonRegionLoader {
           id: id,
           name: name,
           polygons: polygons,
-          borderColor: Colors.white,
+          borderColor: Colors.white.withAlpha(160),
           borderWidth: 0.8,
           fillColor: Colors.blue.withAlpha(20),
-          highlightColor: Colors.orange.withAlpha(180),
+          highlightColor: Colors.amber.withAlpha(180),
           clipAgainst: clipAgainst,
         ),
       );
@@ -708,7 +889,7 @@ class IndiaBorderResolver {
             borderColor: Colors.white,
             borderWidth: 0.8,
             fillColor: Colors.blue.withAlpha(20),
-            highlightColor: Colors.orange.withAlpha(180),
+            highlightColor: Colors.amber.withAlpha(180),
           );
         }
       }
