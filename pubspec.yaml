@@ -1,5 +1,5 @@
 name: globe_tester
-description: "A new Flutter project."
+description: "Interactive Flutter testbed and showcase app for flutter_earth_globe featuring region boundaries, hit-testing, dynamic styling, day/night cycles, and satellite orbits."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
